@@ -1,4 +1,23 @@
 {
- "a": {"name": "slope", "tex": "a", "type": "param", "sec": "s1-1", "def": "How much the output rises when the input rises by one unit; fixed by the reader."},
- "x": {"name": "input", "tex": "x", "type": "data", "sec": "s1-1", "def": "The number that goes into the line, read from the data before any calculation runs."}
+ "a": {
+  "name": "slope",
+  "tex": "a",
+  "type": "param",
+  "sec": "s1-1",
+  "def": "How much the output rises when the input rises by one unit; fixed by the reader."
+ },
+ "x": {
+  "name": "input",
+  "tex": "x",
+  "type": "data",
+  "sec": "s1-1",
+  "def": "The number that goes into the line, read from the data before any calculation runs."
+ },
+ "y": {
+  "name": "output",
+  "tex": "y",
+  "type": "est",
+  "sec": "s1-1",
+  "def": "The number that comes out of the line: the slope times the input, computed by the page."
+ }
 }

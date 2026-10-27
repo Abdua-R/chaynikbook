@@ -124,13 +124,16 @@ def tokens(md, data):
     return TOKEN.sub(one, md)
 
 
-def _math_patterns():
-    r"""Which literal pieces of TeX stand for a glossary symbol, so a symbol inside a rendered
-    equation can be pressed like one in the prose (see page.js, tagMath)."""
+def _visible(ch):
+    return {k: v for k, v in G.items() if not v.get("in") or ch in v["in"]}
+
+
+def _math_patterns(ch):
+    r"""Which literal pieces of TeX stand for a glossary symbol in chapter ch, so a symbol inside a rendered
+    equation can be pressed like one in the prose (see page.js, tagMath). An entry with "in": [chapter ids]
+    exists only in those chapters, so one letter can mean two things in two chapters, never in one."""
     pats, dupes = {}, set()
-    for k, v in G.items():
-        if v.get("nopattern"):
-            continue
+    for k, v in _visible(ch).items():
         forms = {v["tex"], re.sub(r"\(.*\)$", "", v["tex"])}
         for f in (x.strip() for x in forms):
             if not f or f.startswith("-"):
@@ -140,34 +143,71 @@ def _math_patterns():
             pats[f] = k
     for f in dupes:
         pats.pop(f, None)
+        errors.append(f"{ch}: two glossary entries are written ${f}$; give one of them an \"in\" list of chapters")
     family = {}
-    for k, v in G.items():
+    for k, v in _visible(ch).items():
         head = re.split(r"[_^(]", v["tex"], maxsplit=1)[0]
         if head and head != v["tex"]:
             family.setdefault(head, set()).add(k)
     family = {h: ks.pop() for h, ks in family.items() if len(ks) == 1}
-    return sorted(pats.items(), key=lambda kv: -len(kv[0])), sorted(dupes), family
+    return sorted(pats.items(), key=lambda kv: -len(kv[0])), family
 
 
-MATH_PATTERNS, MATH_DUPES, MATH_FAMILY = _math_patterns()
-SUBSCRIPT = re.compile(r"[_^](\{[^{}]*\}|\\[A-Za-z]+|.)")
+PATTERNS = {}
+CUR = {"ch": None}  # the chapter being built, so a symbol is matched against that chapter's glossary
+
+
+def patterns(ch):
+    if ch not in PATTERNS:
+        PATTERNS[ch] = _math_patterns(ch)
+    return PATTERNS[ch]
+
+
+for _k, _v in G.items():
+    if _v.get("nopattern"):
+        errors.append(f'glossary {_k} has nopattern, which leaves it unhighlighted; scope it with "in": [chapter ids]')
+SUBSCRIPT = re.compile(r"[_^](\{(?:[^{}]|\{[^{}]*\})*\}|\\[A-Za-z]+|.)")
 TEXT_MACRO = re.compile(r"\\(?:text|mathrm|operatorname)(?:bf|it|rm|sf|tt)?\{[^{}]*\}")
 
 
-def _mark_chunk(s, pats, family):
+HIDDEN = re.compile(r"\\(?:text|mathrm|operatorname)(?:bf|it|rm|sf|tt)?\{[^{}]*\}"
+                    r"|\\(?:begin|end|hspace|vspace|color|textcolor|phantom)\{[^{}]*\}")
+
+
+def _hide(s):
+    """Text inside \\text{...} and the like keeps its length and content but loses its ASCII letters, so no symbol
+    matches inside a label while a glossary symbol written with \\text (\\lambda_{\\text{cat}}) still matches whole."""
+    return HIDDEN.sub(lambda mo: mo.group(0)[:mo.group(0).index("{") + 1]
+                          + "".join(chr(0xE000 + ord(c)) if c.isascii() and c.isalpha() else c
+                                    for c in mo.group(0)[mo.group(0).index("{") + 1:]), s)
+
+
+def _unhide(s):
+    return "".join(chr(ord(c) - 0xE000) if 0xE000 <= ord(c) < 0xE080 else c for c in s)
+
+
+IN_MACRO = re.compile(r"\\[A-Za-z]*$")
+
+
+def _mark_chunk(s, pats, family, count=True):
     found = []
     for pat, key in pats:
+        hp = _hide(pat)
         bare = "_" not in pat and "^" not in pat
-        at = s.find(pat)
+        macro = pat.startswith("\\")
+        at = s.find(hp)
         while at >= 0:
-            i, n, after = at, len(pat), s[at + len(pat):]
-            at = s.find(pat, at + 1)
-            before = s[i - 1] if i else ""
-            if before and (before.isalnum() or before == "\\"):
+            i, n, after = at, len(hp), s[at + len(hp):]
+            at = s.find(hp, at + 1)
+            # a letter is a symbol unless it is part of a macro name (\frac) or of a longer glossary symbol, which
+            # sorts first; a macro symbol (\theta) may follow a letter, as in E\theta
+            if not macro and IN_MACRO.search(s[:i]):
                 continue
-            if after[:1].isalnum():
+            if i and s[i - 1] == "\\":
                 continue
-            rank = 0
+            if macro and after[:1].isalpha():
+                continue
+            rank, k = 0, key
             if bare and after[:1] in ("_", "^"):
                 mo = SUBSCRIPT.match(after)
                 if not mo:
@@ -175,8 +215,8 @@ def _mark_chunk(s, pats, family):
                 n += mo.end()
                 rank = 1
                 if after[:1] == "_":
-                    key = family.get(pat, key)
-            found.append((i, -n, rank, key))
+                    k = family.get(pat, key)
+            found.append((i, -n, rank, k))
     found.sort()
     out, pos = [], 0
     for i, neg, _, key in found:
@@ -184,26 +224,59 @@ def _mark_chunk(s, pats, family):
             continue
         out.append(s[pos:i])
         out.append("\\class{sym-k-%s}{%s}" % (key, s[i:i - neg]))
-        math_hits[key] += 1
+        if count:
+            math_hits[key] += 1
         pos = i - neg
     out.append(s[pos:])
     return "".join(out)
 
 
 def mark_math(tex):
-    holes = []
-
-    def mask(mo):
-        holes.append(mo.group(0))
-        return "\x00" * (len(mo.group(0)) - 1) + "\x01"
-
-    marked = _mark_chunk(TEXT_MACRO.sub(mask, tex), MATH_PATTERNS, MATH_FAMILY)
-    it = iter(holes)
-    marked = re.sub("\x00*\x01", lambda mo: next(it), marked)
+    pats, family = patterns(CUR["ch"])
+    marked = _unhide(_mark_chunk(_hide(tex), pats, family))
     if _unmark(marked) != tex:
         errors.append("marking symbols changed an equation: " + tex[:70])
         return tex
+    for tok in leftover_symbols(marked):
+        unmarked[(CUR["ch"], tok)] += 1
+        unmarked_eg.setdefault((CUR["ch"], tok), tex[:60])
     return marked
+
+
+GREEK = set(("alpha beta gamma delta epsilon varepsilon zeta eta theta vartheta kappa lambda mu nu xi pi rho "
+             "sigma tau phi varphi chi psi omega ell Gamma Delta Theta Lambda Xi Pi Sigma Phi Psi Omega").split())
+NOT_MATH = re.compile(r"\\(?:text\w*|mathrm|operatorname|begin|end|hspace|vspace|color|textcolor|phantom)\{[^{}]*\}")
+unmarked = collections.Counter()
+unmarked_eg = {}
+
+
+def _strip_marks(s):
+    out, i = [], 0
+    while True:
+        mo = CLASS_OPEN.search(s, i)
+        if not mo:
+            return "".join(out) + s[i:]
+        out.append(s[i:mo.start()] + " ")
+        depth, j = 1, mo.end()
+        while j < len(s) and depth:
+            depth += {"{": 1, "}": -1}.get(s[j], 0)
+            j += 1
+        i = j
+
+
+def leftover_symbols(marked):
+    """Letters and Greek letters left in math once glossary marks, text and macro names are taken out: each is a
+    symbol the reader cannot look up, so the build fails on it."""
+    s = _strip_marks(marked)
+    named = re.findall(r"\\(?:mathrm|operatorname)\{([^{}]*)\}", s)
+    s = NOT_MATH.sub(" ", s)
+    return named + [mo.group(1) or mo.group(2) for mo in re.finditer(r"\\([A-Za-z]+)|([A-Za-z]+)", s)
+            if mo.group(2) or mo.group(1) in GREEK]
+
+
+def keys_in(tex, ch):
+    pats, family = patterns(ch)
+    return re.findall(r"\\class\{sym-k-([A-Za-z0-9]+)\}", _mark_chunk(_hide(tex), pats, family, False))
 
 
 CLASS_OPEN = re.compile(r"\\class\{sym-k-[A-Za-z0-9]+\}\{")
@@ -243,7 +316,7 @@ def sym(mo):
 
 def eq_block(body):
     fields = dict(re.findall(r"^(\w+):[ \t]*(.*)$", body, re.M))
-    for k in ("id", "code", "title", "meaning", "numbers", "symbols"):
+    for k in ("id", "title", "meaning", "numbers", "symbols"):
         if not fields.get(k):
             errors.append(f'equation block missing {k}: {body.strip()[:60]!r}')
     eid = fields.get("id", "")
@@ -252,14 +325,114 @@ def eq_block(body):
         fields[k] = re.sub(r"(?<=\d),(?=\d{3}(?!\d))", "{,}", fields.get(k, ""))
         # a bare % starts a TeX comment and would swallow the rest of the line
         fields[k] = re.sub(r"(?<!\\)%", r"\\%", fields[k])
+    lint_numbers(fields.get("numbers", ""), fields.get("symbols", ""), eid)
+    if fields.get("code"):
+        errors.append(f"eq {eid}: drop the code field; the page never shows where the code lives")
     return (f'<div class="eq" id="eq-{eid.replace(".", "-")}">'
-            f'<span class="id">({eid}) <code>{html.escape(fields.get("code", ""))}</code></span>'
+            f'<span class="id">({eid})</span>'
             f'<strong>{fields.get("title", "")}</strong>'
             f'<div class="meaning">{fields.get("meaning", "")}</div>'
             f'<div class="row"><span class="lbl">with numbers</span>'
             f'<span>$${mark_math(fields.get("numbers", ""))}$$</span></div>'
             f'<div class="row"><span class="lbl">in symbols</span>'
             f'<span>$${mark_math(fields.get("symbols", ""))}$$</span></div></div>')
+
+
+REL = re.compile(r"=|\\approx|\\ge(?:q)?(?![a-z])|\\le(?:q)?(?![a-z])|<|>")
+OPS = re.compile(r"[-+/^]|\\times|\\cdot|\\frac|\\sqrt|\\sum|\\prod|\\int|\\min|\\max|\\log|\\ln|\\exp|\\lceil|\\lfloor"
+                 r"|\\(?:operatorname|text|mathrm)\{[^{}]*\}\s*\(")
+# a brace's label, which may itself hold a symbol (\underbrace{1}_{p_{\text{Farm}}}), and the index range of a sum
+BRACE_LABEL = re.compile(r"\}[_^]\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}")
+RANGE = re.compile(r"\\(?:sum|prod|int)(?:_\{[^{}]*\}|_.)?(?:\^\{[^{}]*\}|\^.)?")
+SUBS = re.compile(r"_\{(?:[^{}]|\{[^{}]*\})*\}|_.")
+
+
+def _drop_labels(tex):
+    """Keep what a brace groups, drop the brace and its label."""
+    out, i = [], 0
+    for mo in re.finditer(r"\\(?:underbrace|overbrace)\{", tex):
+        if mo.start() < i:
+            continue  # a brace inside an outer brace's group is kept with the group and dropped below
+        depth, j = 1, mo.end()
+        while j < len(tex) and depth:
+            depth += {"{": 1, "}": -1}.get(tex[j], 0)
+            j += 1
+        lab = BRACE_LABEL.match(tex, j - 1)
+        out.append(tex[i:mo.start()] + "{" + _drop_labels(tex[mo.end():j - 1]) + "}")
+        i = lab.end() if lab else j
+    return "".join(out) + tex[i:]
+
+
+def _clauses(tex):
+    """Split a row at commas, quads and line breaks outside brackets, then each clause at its relations outside
+    brackets: [[(None, left), (relation, middle), ..., (relation, result)], ...]."""
+    out, depth, cur = [], 0, ""
+    for piece in re.split(r"(\\qquad|\\quad|\\\\|(?<!\\),(?!\d)|[{}()\[\]]|\\[lr]?[bB]ig[lr]?[\[\]()])", _drop_labels(tex)):
+        if piece in ("{", "(", "[") or piece.endswith(("[", "(")) and piece.startswith("\\"):
+            depth += 1
+        elif piece in ("}", ")", "]") or piece.endswith(("]", ")")) and piece.startswith("\\"):
+            depth -= 1
+        elif depth == 0 and piece in ("\\qquad", "\\quad", "\\\\", ","):
+            out.append(cur)
+            cur = ""
+            continue
+        cur += piece
+    out.append(cur)
+    res = []
+    for c in out:
+        parts, rels, depth, last, i = [], [None], 0, 0, 0
+        while i < len(c):
+            depth += {"{": 1, "(": 1, "[": 1, "}": -1, ")": -1, "]": -1}.get(c[i], 0)
+            mo = REL.match(c, i) if depth == 0 else None
+            if mo:
+                parts.append(c[last:i])
+                rels.append(mo.group(0))
+                last = i = mo.end()
+                continue
+            i += 1
+        parts.append(c[last:])
+        if len(parts) > 1:
+            res.append(list(zip(rels, parts)))
+    return res
+
+
+def _symbols(tex, ch):
+    """Glossary symbols in a piece of math, operators ($P$, $E$, $e$) and a sum's index range left out."""
+    return [k for k in keys_in(RANGE.sub(" ", tex), ch) if G[k].get("type") != "op"]
+
+
+def _worked(m):
+    """Two numbers or more in one piece outside subscripts: they are combined, so arithmetic is shown."""
+    return len(re.findall(r"\d+(?:\.\d+)?", SUBS.sub(" ", m).replace("{,}", ""))) >= 2
+
+
+def lint_numbers(numbers, symbols, eid):
+    """Photomath: the numbers row writes the symbolic form with every symbol replaced by its value and works it to
+    the result. No symbol may remain right of an "=", no formula of symbols may be set equal to its value in one
+    jump, and when the symbolic form computes anything (an operator, or two symbols side by side, as in a product)
+    the numbers row combines numbers."""
+    ch = CUR["ch"]
+    where = f"{ch} eq {eid}"
+    clauses = _clauses(numbers)
+    if not clauses:
+        errors.append(f"{where}: the numbers row has no equation; write the symbolic form with the values in")
+        return
+    worked = False
+    for clause in clauses:
+        parts = [m for _, m in clause]
+        # a symbol may sit between two inequalities (27,495 <= x_j <= 82,485), never right of an equals sign
+        if any(_symbols(m, ch) for r, m in clause[1:] if r in ("=", r"\approx")):
+            errors.append(f"{where}: a symbol is left right of '=' in the numbers row; put its value in: {'='.join(parts)[:70]}")
+        left = SUBS.sub(" ", parts[0])
+        if len(parts) < 3 and _symbols(parts[0], ch) and OPS.search(left):
+            errors.append(f"{where}: a formula of symbols jumps to its value; show it with the numbers in first: {'='.join(parts)[:70]}")
+        worked = worked or any(_worked(m) for m in parts)
+    computes = any(OPS.search(SUBS.sub(" ", m)) or len(_symbols(m, ch)) > 1
+                   for clause in _clauses(symbols) for _, m in clause[1:])
+    if computes and not worked:
+        errors.append(f"{where}: the symbolic form computes something, the numbers row only lists values; work it on numbers")
+    if computes and "\\underbrace" not in symbols:
+        errors.append(f"{where}: the symbols row combines symbols with no brace naming a group; add \\underbrace labels")
 
 
 def steps_block(body):
@@ -274,6 +447,11 @@ def steps_block(body):
         tex, _, rule = ln.partition("//")
         if not rule.strip():
             errors.append(f"steps line without a rule after //: {ln.strip()[:60]!r}")
+        if re.search(r"(simplif|rearrang|tidy|clean up)", rule, re.I):
+            errors.append(f"{CUR['ch']}: a step named 'simplify' or 'rearrange' hides its operation: {rule.strip()[:70]!r}")
+        cap = 25 if not rows else 16  # the author's judgement: an operation fits in a short instruction
+        if len(re.sub(r"\$[^$]*\$", "X", rule).split()) > cap:
+            errors.append(f"{CUR['ch']}: a step's rule over {cap} words is more than one operation: {rule.strip()[:70]!r}")
         tex = re.sub(r"(?<!\\)%", r"\\%", re.sub(r"(?<=\d),(?=\d{3}(?!\d))", "{,}", tex.strip()))
         rows.append(f'<li><span class="st-math">$${mark_math(tex)}$$</span><span class="st-rule">{rule.strip()}</span></li>')
     sid = head.get("id", "")
@@ -393,8 +571,61 @@ def mark_prose_math(md):
     return "".join(out)
 
 
+INTRODUCED = set()  # symbols the text has introduced with [[key]] so far, in reading order across chapters
+
+
+def lint_order(md, ch):
+    """A symbol appears in math only after the text has introduced it in words with [[key]], earlier in this
+    chapter or in an earlier one (an eq block's meaning row counts, as it is read before the equation)."""
+    def steps(mo):
+        return "\n" + "\n".join("" if re.match(r"^(id|title):", ln) else
+                                "$" + ln.partition("//")[0] + "$ " + ln.partition("//")[2]
+                                for ln in mo.group(1).splitlines()) + "\n"
+    scan = re.sub(r"```steps\n(.*?)```", steps, md, flags=re.S)
+    scan = re.sub(r"```(?:panel|check|map)\n.*?```", lambda mo: "\n" * mo.group(0).count("\n"), scan, flags=re.S)
+    scan = re.sub(r"^(?:numbers|symbols):(.*)$", lambda mo: "$" + mo.group(1) + "$", scan, flags=re.M)
+    late = {}
+    for mo in re.finditer(r"\[\[([\w:-]+)\]\]|\$\$?([^$]+?)\$\$?", scan):
+        if mo.group(1):
+            INTRODUCED.add(mo.group(1))
+            continue
+        for key in keys_in(mo.group(2), ch):
+            if key not in INTRODUCED and key not in late:
+                late[key] = scan.count("\n", 0, mo.start()) + 1
+    for key, line in late.items():
+        errors.append(f"{ch}:{line} {G[key]['name']} (${G[key]['tex']}$) is in math before the text introduces it as [[{key}]]")
+
+
+NARRATION = re.compile(r"\b(each night|every night|nightly|logs? (?:a|the|every|each)|is logged|the script|the code"
+                       r"|prints?|in the file|the database)\b", re.I)
+
+
+def lint_prose(md, ch):
+    """The CGE book's measure (its longest paragraph is 102 words, and no chapter has more than three sentences
+    over 35 words): no paragraph or list item over 110 words, at most three sentences over 35 words a chapter.
+    And the page teaches the subject, so it never narrates the system's internals."""
+    t = re.sub(r"```.*?```|<details>.*?</details>", lambda mo: "\n" * mo.group(0).count("\n"), md, flags=re.S)
+    long_s, line = [], 1
+    for para in re.split(r"(\n\s*\n|\n(?=\s*(?:[-*]|\d+\.) ))", t):
+        body = re.sub(r"^\s*(?:[-*]|\d+\.|:::\s*\w*)\s+", "", para)
+        if para.strip() and not para.lstrip().startswith(("#", "|", "<")) and body.strip():
+            flat = re.sub(r"\$[^$]*\$", "X", body)
+            n = len(flat.split())
+            if n > 110:
+                errors.append(f"{ch}:{line} a paragraph of {n} words; split it at its second idea (cap 110)")
+            long_s += [line for s in re.split(r"(?<=[.?!])\s+(?=[A-Z0-9\[\$\"(Ѐ-ӿ])", flat) if len(s.split()) > 35]
+            for mo in NARRATION.finditer(flat):
+                errors.append(f"{ch}:{line} '{mo.group(0)}' narrates the system; say what the method does instead")
+        line += para.count("\n")
+    if len(long_s) > 3:
+        errors.append(f"{ch}: {len(long_s)} sentences over 35 words (cap 3), at lines {', '.join(map(str, long_s[:8]))}")
+
+
 def preprocess(md, chapter_id, data):
+    CUR["ch"] = chapter_id
     md = tokens(md, data)
+    lint_order(md, chapter_id)
+    lint_prose(md, chapter_id)
 
     def anchor(mo):
         return f"{mo.group(0)} {{#s{mo.group(1).replace('.', '-')}}}"
@@ -512,13 +743,20 @@ def build():
         for other in v.get("see", []):
             if other not in TERMS:
                 errors.append(f"term {k} points at unknown related term {other}")
+    if unmarked:
+        by_ch = collections.defaultdict(list)
+        for (ch, tok), n in unmarked.most_common():
+            by_ch[ch].append(f"{tok} ({n}, e.g. ${unmarked_eg[(ch, tok)]}$)")
+        for ch, toks in by_ch.items():
+            errors.append(f"{ch}: symbols in math with no glossary entry for this chapter: " + "; ".join(toks[:8]))
     print(f"  terms: {len(TERMS)} defined, {sum(term_hits.values())} links; "
           f"math: {sum(math_hits.values())} symbols tagged, {len(math_hits)} distinct")
 
-    groups = [("data", "Data"), ("est", "Estimates"), ("param", "Settings"), ("decision", "Decisions")]
+    groups = [("data", "Data"), ("est", "Estimates"), ("param", "Settings"), ("decision", "Decisions"),
+              ("op", "Operations")]
     for k, v in G.items():
         if v.get("type") not in {g for g, _ in groups}:
-            errors.append(f"glossary {k} has type {v.get('type')!r}, not one of data, est, param, decision")
+            errors.append(f"glossary {k} has type {v.get('type')!r}, not one of data, est, param, decision, op")
     gloss = ""
     for kind, label in groups:
         gloss += f'<li class="ghead"><span>{label}</span><span></span></li>'

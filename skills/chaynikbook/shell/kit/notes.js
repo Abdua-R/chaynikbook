@@ -36,7 +36,7 @@
   }
   async function drop(id) {
     notes = notes.filter((n) => n.id !== id); cache();
-    if (remote) { try { await remote.col.doc(id).delete(); } catch (e) { /* kept locally deleted */ } }
+    if (remote) { try { await remote.col.doc(id).delete(); } catch (e) { status("could not delete it from your account; it may come back on reload"); } }
   }
 
   // ---- drawer
@@ -107,7 +107,11 @@
             ed._t = t;
           } else { n.text = ed._t.value.trim() || n.text; n.updated = new Date().toISOString(); render(); await save(n); }
         });
-        del.addEventListener("click", async () => { if (confirm("Delete this note?")) { await drop(n.id); render(); } });
+        // confirm() is blocked in a sandboxed Artifact frame and returns false, so the button asks in place instead
+        del.addEventListener("click", async () => {
+          if (del.textContent === "Delete") { del.textContent = "Delete? Yes"; setTimeout(() => { del.textContent = "Delete"; }, 4000); return; }
+          await drop(n.id); render();
+        });
       }
     }
   }

@@ -162,8 +162,11 @@ def main():
           "if(mr.right>innerWidth)r.push('mark off screen');}"
           "var k=Object.keys(localStorage).find(function(x){return x.indexOf('chaynikbook-notes:')===0});"
           "var st=k?JSON.parse(localStorage.getItem(k)):[];if(st.length!==1||st[0].text!=='probe edited')r.push('not stored');"
-          "window.confirm=function(){return true};[...box.querySelectorAll('.nt-card button')].find(function(b){return b.textContent==='Delete'}).click();"
-          "await new Promise(function(f){setTimeout(f,100)});if(JSON.parse(localStorage.getItem(k)).length!==0)r.push('delete not stored');"
+          # an Artifact frame blocks confirm(), so the probe blocks it too and deletes the way a reader does:
+          # one click asks, nothing is gone yet; the second click deletes
+          "window.confirm=function(){return false};var dl=[...box.querySelectorAll('.nt-card button')].find(function(b){return b.textContent==='Delete'});dl.click();"
+          "await new Promise(function(f){setTimeout(f,100)});if(JSON.parse(localStorage.getItem(k)).length!==1)r.push('one click on Delete already deleted');"
+          "dl.click();await new Promise(function(f){setTimeout(f,100)});if(JSON.parse(localStorage.getItem(k)).length!==0)r.push('delete not stored');"
           "if(document.querySelector('.nt-mark'))r.push('margin mark left after delete');"
           "}catch(e){r.push('error '+e.message)}document.title='NOTES:'+r.length+'|'+r.join(' ; ');},6000);});</script>")
     nprobe = ROOT / "_verify_notes.html"

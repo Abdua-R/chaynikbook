@@ -36,6 +36,7 @@
   --t-est: #006300;
   --t-param: #52514e;
   --t-decision: #b23a3a;
+  --t-op: var(--ink-2);
 
   --seq-1: #cde2fb; --seq-2: #9ec5f4; --seq-3: #6da7ec; --seq-4: #3987e5;
   --seq-5: #256abf; --seq-6: #184f95; --seq-7: #0d366b;
@@ -171,6 +172,7 @@ a { color: var(--t-data); }
 .term.hl { background: color-mix(in srgb, var(--c-capital) 30%, transparent); border-radius: 3px; }
 .sym-data { color: var(--t-data); } .sym-est { color: var(--t-est); }
 .sym-param { color: var(--t-param); } .sym-decision { color: var(--t-decision); }
+.sym-op { color: var(--t-op); }
 .sym.hl, aside.gloss li.hl { background: color-mix(in srgb, var(--c-capital) 30%, transparent); border-radius: 3px; }
 
 /* A symbol inside an equation. MathJax draws it, so it cannot take a border or a background:
