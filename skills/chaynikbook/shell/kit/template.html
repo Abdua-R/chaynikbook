@@ -1,0 +1,52 @@
+<title>{{TITLE}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>{{CSS}}</style>
+<script>
+  window.MathJax = {
+    // the html extension provides \class, which is how a symbol inside an equation carries
+    // the key the page turns into a data-sym so the reader can press the glyph itself
+    loader: { load: ["[tex]/html"] },
+    tex: { packages: { "[+]": ["html"] },
+           inlineMath: [["\\(", "\\)"], ["$", "$"]],
+           displayMath: [["\\[", "\\]"], ["$$", "$$"]] },
+    svg: { fontCache: "global" },
+    options: { skipHtmlTags: ["script", "noscript", "style", "textarea", "pre", "code"] }
+  };
+</script>
+<script id="MathJax-script" async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js"></script>
+<div class="layout">
+  <nav class="rail">
+    <div id="progress"><div></div></div>
+    {{NAV}}
+    <div class="railfoot">
+      <button id="theme" type="button">theme</button>
+      <span id="engine-badge" class="badge">engine: checking</span>
+    </div>
+  </nav>
+  <main>
+    {{BODY}}
+    <footer>{{SUBTITLE}}</footer>
+  </main>
+  <aside class="gloss">
+    <div id="defcard" class="defcard" aria-live="polite">
+      <div class="dc-empty">
+        <strong>Look anything up</strong>
+        <p>Hover an underlined symbol, term or idea in the text and its definition appears
+        here. Click one to pin it while you read on.</p>
+      </div>
+    </div>
+    <div class="railtabs" role="tablist">
+      <button type="button" role="tab" data-tab="glossary" aria-selected="true">Symbols</button>
+      <button type="button" role="tab" data-tab="termlist" aria-selected="false">Terms</button>
+    </div>
+    <ul id="glossary" class="raillist">{{GLOSS}}</ul>
+    <ul id="termlist" class="raillist" hidden>{{TERMLIST}}</ul>
+  </aside>
+</div>
+<script>window.{{DATA_GLOBAL}} = {{DATA}};</script>
+<script>{{ENGINE}}</script>
+<script>{{PANELS}}</script>
+<script>{{PAGE}}</script>
+<script>{{NOTES}}</script>

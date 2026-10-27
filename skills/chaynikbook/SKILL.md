@@ -1,61 +1,58 @@
 ---
 name: chaynikbook
-description: "Build an explorable book for dummies: a textbook, paper or topic turned into one interactive HTML page with a live model behind every number, readable from scratch."
-argument-hint: "source (PDF path or citation) or topic, and who the reader is"
+description: "Explain a topic, method, paper or model briefly from scratch as one explorable HTML page: worked example, equations with labelled parts and step-by-step derivations, a few live panels. A whole book only when the user asks for one."
+argument-hint: "topic, source (PDF path or citation) or model, and who the reader is"
 disable-model-invocation: true
 ---
 
-A chaynikbook takes a reader with no background to the point where they can use the subject on a question of their own, over a stated main-path time (a full textbook: about one day). It is one self-contained HTML page: prose, equations, interactive panels, and a model that recomputes every number the reader sees.
+A chaynikbook explains a subject to a reader with no background, briefly, as one self-contained HTML page: prose, equations, a few interactive panels, and numbers that come from code. The default is a short explainer. A full book, with chapters, a computed model and a JavaScript twin, is built only when the user asks for a book or for a source to be covered whole.
 
-It starts from one of two inputs, named in the arguments:
+## 1. Size the job first
 
-- a source (textbook, paper, course): the book covers everything in it, reordered for learning, adds depth where the source states an assumption without showing what it costs, and recomputes every number the source prints;
-- a topic: the book is assembled from the literature, and every number comes from code or a cited source, never from memory.
+State in chat, in three to five lines, and then proceed without waiting:
 
-## 1. Spec and plan
+- the reader, and what they can do at the end;
+- the running example (one small named case whose numbers every section reuses);
+- the sections, each one line;
+- the size: an explainer by default, which is one page of 1 to 4 sections, about 800 to 2,500 words on the main path, 1 to 3 panels, a few predict-then-test checks; a book when asked.
 
-For a source, keep the file out of version control and extract its text with a script to `output/source_text.txt`, so that every later step can cite page and section. For a topic, search the literature, record each source and what it provides in `docs/REFERENCES.md`, and keep a `references.bib`.
+Only a book gets the brainstorming, a written spec and a plan (section 5). For an explainer the size line above is the spec. Cover what the subject needs to be understood and used; leave the rest out, naming it in one line at the end.
 
-Settle the design with the user (with `superpowers:brainstorming` if installed) and write `docs/spec.md` with a decisions table that fixes:
+## 2. Numbers
 
-- the reader and what they can do at the end;
-- the running example: one small named economy, system or case that every chapter reuses, with its base values (for a general equilibrium book: a Farm, a Factory, an Owner household and a Worker household);
-- the chapter map: for each chapter the source sections or references it covers, minutes on the main path, its panels and its checks; core chapters first, then application chapters, then a last chapter that is the recipe from a research question to a result;
-- the model the book computes with and the numbers it must reproduce (a source's printed tables, or a topic's published results), or, for a subject with no computable model, the data the panels show;
-- notation: a readable name beside each symbol;
-- the main-path time and word budget, collapsed material excluded;
-- the visual system: one fixed colour per actor, a tint per symbol type, chart rules (one axis per chart, a legend for two or more series, a tooltip on every mark, a table view behind every chart);
-- whether the book applies the method to the reader's own country or data, timeboxed, with a template of named blank cells as the fallback;
-- what is out of scope.
-
-Then write the implementation plan (with `superpowers:writing-plans` if installed). Done when the user approves the spec and the plan.
-
-## 2. Model before prose
-
-Write the reference model as a Python kit, one module shared by every chapter, and tests that reproduce every number the spec lists to the precision it was published at. Every parameter has a source: calibrated from data where the method allows (a general equilibrium model reads all of them off its social accounting matrix), otherwise cited. Keep every cited parameter and every reproduced published number in one registry file that the code writes and the text reads. When a recomputation disagrees with a source, find which side is wrong and record it in `docs/ERRATA.md` with the arithmetic that shows it; never copy a number that does not reproduce. If the source prints code, transcribe it and plan it beside its Python twin with a translation table.
-
-Then write the JavaScript twin to the engine interface in `shell.md`, export solved cases from the kit, and test that the twin matches each. A subject with no computable model has no kit and no twin: its checks reveal a written answer, and its panels draw from the cited data. Done when the kit's tests pass and the twin matches every exported case, or, without a model, when a test reproduces every number a panel draws from the cited data.
+Every number on the page comes from a script or a cited source, never from memory. For an explainer, one script `src/01_numbers.py` computes the running example and writes `data/cases.json`; the page reads it through `{{tokens}}`. A panel that recomputes live does so in its own JavaScript, checked against the script at two or three points by an assert in the script's output. Build a full kit and twin only in book mode.
 
 ## 3. Shell
 
-Build the page shell to the component list in `shell.md`; if a `shell/` folder exists next to this file, start from it instead. The project layout is: `data/` raw inputs only, `src/` all code (kit, engine, panels, tests, and the scripts numbered in run order: `01_export_cases.py`, `02_build.py`, `03_verify_render.py`), `book/` the hand-written content (`chapters/*.md`, `manifest.json`, `glossary.json`, `terms.json`), `output/` everything generated (`index.html`, `models.json`, `cases.json`), `docs/` the spec, plan, references and errata. The README opens with this map. Done when chapter 1 builds and `03_verify_render.py` reports no problems, with the engine badge at N/N when there is an engine.
+Copy the files of `~/.claude/skills/chaynikbook/shell/kit/` (not its `sample/`) into a `book/` folder in the project, and say in the README that `book/` holds the page and the code that builds it. `book/data/` holds only what the page shows, since every JSON there is embedded in the published page; raw inputs stay in the project's `data/`. The page writes only `book.json`, `chapters/`, `data/`, its `panels_<name>.js` and, if it recomputes live, `engine.js`; the kit's `README.md` says what each needs and `sample/` is a one-chapter page that passes. Do not open or adapt the reference books. From `book/`, run `python check.py`: it builds, runs the render test and the secret scan, and prints only failures.
 
-## 4. Chapters
+## 4. Page elements
 
-Each chapter follows one anatomy:
+These hold in both sizes.
 
-- Prose written for a reader new to the subject, as described below.
-- Headings carry the source's section number, or in a topic book the citation key of the main reference, so coverage is checkable.
-- Every displayed equation is one block of three rows: what it means in one plain sentence, the equation with the running example's numbers plugged in, then the symbolic form with dual notation.
-- Every symbol and term is in the glossary, which lights up on hover in the right rail.
-- Derivations, code listings and deeper panels sit in collapsed `<details>` and do not count toward the budget.
-- Each panel has a title, one sentence saying what to watch, its controls in one row, the chart, a table view and a reset to the base values.
-- The chapter ends with 3 to 5 predict-then-test checks: a change, direction buttons for one variable, the engine's answer (or the revealed answer), a one-line reason and a link to the section that explains it.
+- Prose follows the `writing` skill's from-scratch mode. Each section runs in the order things happen: what the step is for in one or two sentences, the running example worked through with its numbers and a visual, the mechanism in plain words, then the method's name and its literature. Every term is defined inside the sentence that first uses it. The page teaches the subject and never reports how it was made: no reruns, fixes, review findings or code locations in prose. Reread each paragraph for the question it leaves open and answer it in place, or cut what raises it.
+- Every displayed equation is an `eq` block of three rows: what it means in one sentence, the equation with the running example's numbers, the symbolic form.
+- Every group of symbols that means one thing together (a ratio, a product, a difference, a sum, a probability, an exponent) has a curly brace under it with its meaning in about six defined words, `\underbrace{N - \ell L}_{\text{what a late unit brings back}}`: in the symbols row, and in a derivation on the line where the group first appears and on the last line. Inner groups get their own brace, at most two deep. A label says what the group is, checked against the meaning row. A rule that picks among several solutions, or a sum over pieces, states which one is picked and which pieces count, including the case with none.
+- A derivation is a `steps` block worked like an old Photomath solution: the first line is the starting equation and where it comes from, each later line the whole equation after exactly one operation, with the operation named on the right ("divide both sides by $N$"). No step is skipped; "simplify" and "rearrange" never name a step. A numbers row that chains three or more operations becomes a `steps` block too. Derivations the point rests on are on the main path; others go into collapsed `<details>`.
+- Every symbol and term is in the glossary with a definition in words (`def`): what it is, its unit, what sets it or what it moves, using only words defined by its section. A name alone is no definition. The rail shows it on hover and under each row, any other symbol list is generated from the same files, and the build fails an entry without one.
+- Each panel has a title, one what-to-watch sentence in defined words, its controls in one row, the chart, a table view and a reset. Axes stay fixed while a control moves, so the curves move: the kit sweeps each panel after load and fixes each chart's range, capped at 2.5 times the base view. A dropdown that changes what the axis measures (another case, horizon, zoom or view) marks itself `data-axes="own"`; a mark pushed past the axes keeps its label at the edge with an arrow, and a chart whose watched mark would leave takes a wider `stretch`.
+- A section ends with 1 to 3 predict-then-test checks (3 to 5 per chapter in a book): a change, direction buttons, the answer from the engine or from a script's output, a one-line reason and a link to the section.
+- The page carries the notes drawer: notes numbered "1*" in the right margin level with the quoted passage. Publish with `capabilities: {db: {}, user: {}}`; before revising a published page, read the user's notes with `ArtifactData` and treat each as a change request.
 
-The prose explains directly, the way a colleague would, rather than staging the material like a lecturer: no aphorisms, no "two things surprise people", no announcing what the reader is about to learn. It keeps the field's real terms and defines each one inside the sentence that first needs it. For a mechanism it shows the worked example first, then the mechanism in plain words, then the name of the theory. It states the final result only, never how the author got there; it makes each point once; it uses no em-dashes, no "not X but Y", no unnecessary hyphens between words, no bold for emphasis, and lists only for items that really are parallel.
+## 5. Book mode
 
-Done for a chapter when it builds without lint errors, its words and minutes are within the manifest's numbers, every panel and check in the spec's map for it works in the page, and a reread as the reader finds no sentence to cut.
+When the user asks for a book: brainstorm (`superpowers:brainstorming`), write `docs/spec.md` with the reader, the running example, the chapter map with minutes, panels and checks, the model and the numbers it must reproduce, the bird's-eye map, the word budget and what is out of scope, then a plan (`superpowers:writing-plans`). For a source, extract its text to `output/source_text.txt` so every step can cite page and section, carry the source's section numbers in the headings so coverage is checkable, and record numbers that do not reproduce in `docs/ERRATA.md`. Write the Python kit with tests that reproduce every published number, a JavaScript twin tested against exported cases, and the whole model reduced by substitution to the fewest equations, shown as a `steps` block and plotted. A map near the start shows what comes after what, and each core chapter ends on it with its own step lit. Show chapter 1 to the user as the model of the voice before writing the rest. Work in sessions by phase (spec and plan, kit and twin, chapters in batches of three or four, verify and publish), each ending with `docs/STATE.md` updated.
 
-## 5. Verify and publish
+## 6. Budget
 
-Run the kit's tests, the JavaScript tests, `02_build.py` and `03_verify_render.py`. Open the page and look at every chapter in light and dark themes and at phone width. List everything in the spec (every chapter, panel, check, reproduced number) and confirm each is in the rendered page. Give a fresh reviewer agent the user's request and the spec, and fix what it finds. Publish the page, and put the link in the README with how to run the model, what the book leaves out, and the errata. If this book built its shell from `shell.md`, save the shell as `shell.md` describes. Done when every check above passes and every spec item is in the published page.
+Tokens go mostly to turns times context, so:
+
+- Edit in batches. Write a section in one go, collect the fixes of a round into one script, and run `check.py` once per batch, never after each edit.
+- Read code by function with grep or a line range; the kit's README names what each file holds. Never print a whole data file or index.html.
+- Look at the page with the render test first. Take a screenshot only for a visual judgement no probe can make, cropped to the element, at most four per round, and never retake one to confirm what a probe already confirms.
+- Run the `refuter` once on the finished page (and once per batch of chapters in a book), naming the files that changed; fix what affects correctness in one pass.
+- When the context passes about 150K tokens, update `docs/STATE.md` and say that a fresh session would help.
+
+## 7. Verify and publish
+
+Run `check.py` and the number script's asserts. List what the size line (or the spec) promised and confirm each item is on the page. Look at the page once in light and dark and at phone width. Publish as an Artifact and put the link in the README. Done when the check is green and every promised item is on the published page.

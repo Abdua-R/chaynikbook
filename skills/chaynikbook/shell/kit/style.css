@@ -1,0 +1,484 @@
+/* Tokens, layout and components for the explorable book.
+
+   Colors are the validated reference palette in its documented slot order:
+   1 blue, 2 orange, 3 aqua, 4 yellow, 5 magenta, 6 green, 7 violet, 8 red.
+   Agents take slots in that order, so labor is blue and government is red. Two rules keep
+   that safe: an agent color only ever carries identity, always beside its name, and a value
+   that can be positive or negative uses the diverging pair instead. The only status colors
+   in the page are on the engine badge in the rail, far from any chart.
+
+   Validator, both modes, all eight slots and each pair that shares a chart: all checks pass.
+   Three light-mode slots sit below 3:1 against the surface, so every chart ships visible
+   labels and a table view. */
+
+:root {
+  color-scheme: light;
+  --surface: #fcfcfb;
+  --plane: #f9f9f7;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11, 11, 11, .10);
+
+  --c-labor: #2a78d6;
+  --c-factory: #eb6834;
+  --c-farm: #1baf7a;
+  --c-capital: #eda100;
+  --c-worker: #e87ba4;
+  --c-row: #008300;
+  --c-owner: #4a3aa7;
+  --c-gov: #e34948;
+  --c-capacc: #898781;
+
+  --t-data: #1c5cab;
+  --t-est: #006300;
+  --t-param: #52514e;
+  --t-decision: #b23a3a;
+
+  --seq-1: #cde2fb; --seq-2: #9ec5f4; --seq-3: #6da7ec; --seq-4: #3987e5;
+  --seq-5: #256abf; --seq-6: #184f95; --seq-7: #0d366b;
+  --div-neg: #e34948; --div-mid: #f0efec; --div-pos: #2a78d6;
+  --ok: #0ca30c; --bad: #d03b3b;
+
+  /* chart roles: one meaning per colour across every panel. main = the quantity the panel is about,
+     alt = the thing it is compared with, ref = a reference line; a book's own roles are the book colours
+     at the end of this file */
+  --v-main: #2a6fc9; --v-main-soft: rgba(42, 111, 201, .16);
+  --v-alt: #d4670f; --v-alt-soft: rgba(212, 103, 15, .14);
+  --v-ref: #6b6a64; --v-halo: #fcfcfb;
+
+  --rail: 250px; --gloss: 250px; --measure: 62ch;
+
+  /* Three roles. The reading face is a serif because this book is half equations, and
+     MathJax sets math in a serif: a sans body would meet the math as a stranger on every
+     line. The grotesque carries headings, navigation, labels and chart text, where the job
+     is to be scanned rather than read. The mono is for file and line references. */
+  --font-read: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-ui: Archivo, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface: #1a1a19; --plane: #0d0d0d; --ink: #ffffff; --ink-2: #c3c2b7;
+    --muted: #898781; --grid: #2c2c2a; --axis: #383835; --border: rgba(255, 255, 255, .10);
+    --c-labor: #3987e5; --c-factory: #d95926; --c-farm: #199e70; --c-capital: #c98500;
+    --c-worker: #d55181; --c-row: #008300; --c-owner: #9085e9; --c-gov: #e66767;
+    --t-data: #86b6ef; --t-est: #7fd07f; --t-param: #c3c2b7; --t-decision: #f0a0a0;
+    --div-mid: #383835;
+    --v-main: #6ea8f2; --v-main-soft: rgba(110, 168, 242, .18);
+    --v-alt: #f29a4a; --v-alt-soft: rgba(242, 154, 74, .16);
+    --v-ref: #a9a89f; --v-halo: #1a1a19;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface: #1a1a19; --plane: #0d0d0d; --ink: #ffffff; --ink-2: #c3c2b7;
+  --muted: #898781; --grid: #2c2c2a; --axis: #383835; --border: rgba(255, 255, 255, .10);
+  --c-labor: #3987e5; --c-factory: #d95926; --c-farm: #199e70; --c-capital: #c98500;
+  --c-worker: #d55181; --c-row: #008300; --c-owner: #9085e9; --c-gov: #e66767;
+  --t-data: #86b6ef; --t-est: #7fd07f; --t-param: #c3c2b7; --t-decision: #f0a0a0;
+  --div-mid: #383835;
+  --v-main: #6ea8f2; --v-main-soft: rgba(110, 168, 242, .18);
+  --v-alt: #f29a4a; --v-alt-soft: rgba(242, 154, 74, .16);
+  --v-ref: #a9a89f; --v-halo: #1a1a19;
+}
+
+body {
+  margin: 0; background: var(--plane); color: var(--ink);
+  font: 17px/1.66 var(--font-read);
+  -webkit-font-smoothing: antialiased;
+}
+.layout {
+  display: grid; grid-template-columns: var(--rail) minmax(0, 1fr) var(--gloss);
+  gap: 28px; max-width: 1440px; margin: 0 auto; padding: 0 16px;
+}
+nav.rail, aside.gloss {
+  position: sticky; top: 0; align-self: start; max-height: 100vh;
+  overflow: auto; padding: 16px 0; font-size: 13px;
+  font-family: var(--font-ui);
+}
+main { max-width: var(--measure); padding: 24px 0 120px; min-width: 0; }
+@media (max-width: 1100px) {
+  .layout { grid-template-columns: 1fr; }
+  nav.rail, aside.gloss { position: static; max-height: none; }
+  aside.gloss { border-top: 1px solid var(--border); }
+}
+
+nav.rail a {
+  display: flex; justify-content: space-between; gap: 8px; color: var(--ink-2);
+  text-decoration: none; padding: 5px 8px; border-radius: 6px;
+}
+nav.rail a:hover { background: var(--surface); }
+nav.rail a.current { background: var(--surface); color: var(--ink); font-weight: 600; }
+nav.rail .min { color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
+#progress { height: 4px; background: var(--grid); border-radius: 2px; margin: 8px; }
+#progress > div { height: 100%; background: var(--c-labor); border-radius: 2px; width: 0; transition: width .1s; }
+.railfoot { margin: 14px 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+h1, h2, h3, h4 { font-family: var(--font-ui); font-weight: 600; letter-spacing: -0.008em; text-wrap: balance; }
+h1 { font-size: 31px; line-height: 1.2; margin: 56px 0 4px; font-weight: 700; }
+main > section:first-child h1 { margin-top: 16px; }
+h2 { font-size: 21px; margin: 36px 0 6px; }
+h3 { font-size: 17px; margin: 26px 0 6px; }
+.bookref {
+  color: var(--muted); font-weight: 500; font-size: .68em; margin-left: .5em; white-space: nowrap;
+  text-transform: uppercase; letter-spacing: .06em;
+}
+p { margin: 0 0 14px; }
+a { color: var(--t-data); }
+
+/* An equation block reaches a little past the text measure, because a formula cannot be
+   rewrapped the way a sentence can, and a reader should not have to scroll one sideways. */
+.eq {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px 16px; margin: 18px 0;
+  width: calc(100% + 76px); margin-left: -38px;
+}
+/* below the three-column width the block fills the column, padding included, and anything wider scrolls inside it */
+@media (max-width: 1100px) { .eq { width: auto; margin-left: 0; overflow-x: auto; } }
+.eq > strong { display: block; padding-right: 6em; }
+.eq .id { float: right; color: var(--muted); font-size: 12px; }
+.eq .meaning { color: var(--ink-2); margin: 4px 0 8px; }
+/* The label sits above the formula rather than in a left column. A formula cannot be
+   rewrapped, and giving it the block's whole width is worth more than the tidier two column
+   look: with the label beside it, four equations overflowed once the reading measure was
+   tightened for the serif. */
+.eq .row { padding: 6px 0 2px; }
+.eq .lbl { display: block; margin-bottom: 1px; color: var(--muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; font-family: var(--font-ui); font-weight: 600; }
+/* MathJax puts an explicit width on its SVG, so an over-wide equation clips with no
+   scrollbar and scrollWidth reports no overflow. Letting the SVG keep its intrinsic width and
+   scrolling the wrapper is what actually makes a long equation reachable. */
+.eq .row > span:last-child { display: block; overflow-x: auto; overflow-y: hidden; min-width: 0; }
+.eq .row > span:last-child .math.display { display: block; }
+.eq .row mjx-container { margin: 0 !important; display: inline-block !important; }
+.eq .row mjx-container[display="true"] { width: auto !important; min-width: max-content; }
+.eq .row mjx-container > svg { max-width: none; }
+
+.sym { border-bottom: 1.5px solid; padding: 0 1px; cursor: help; white-space: nowrap; }
+.sym:focus-visible, .term:focus-visible { outline: 2px solid var(--c-labor); outline-offset: 2px; border-radius: 2px; }
+
+/* A term of art gets a dotted rule, quieter than a symbol's solid one, because the prose is
+   already carrying colored symbols. A named idea adds italics, the old convention for one. */
+.term {
+  border-bottom: 1px dotted var(--axis); cursor: help;
+  text-decoration: none; color: inherit;
+}
+.term:hover { border-bottom-color: var(--ink-2); background: color-mix(in srgb, var(--c-capital) 16%, transparent); }
+.term-concept { font-style: italic; }
+.term.hl { background: color-mix(in srgb, var(--c-capital) 30%, transparent); border-radius: 3px; }
+.sym-data { color: var(--t-data); } .sym-est { color: var(--t-est); }
+.sym-param { color: var(--t-param); } .sym-decision { color: var(--t-decision); }
+.sym.hl, aside.gloss li.hl { background: color-mix(in srgb, var(--c-capital) 30%, transparent); border-radius: 3px; }
+
+/* A symbol inside an equation. MathJax draws it, so it cannot take a border or a background:
+   it takes its colour through currentColor, and the weight under the pointer comes from a
+   stroke on the glyph. bounding-box makes the whole letter box a target rather than the ink
+   alone, and where a browser does not know that keyword the ink still answers. */
+g[data-sym] { cursor: pointer; pointer-events: bounding-box; }
+g[data-sym]:hover, g[data-sym].hl { stroke: currentColor; stroke-width: 35; }
+/* The lookup card sits at the top of the rail and is always in view, so a definition never
+   requires scrolling to reach. That is also what removed the old page-jump bug. */
+.defcard {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 11px 13px; margin-bottom: 12px; font-size: 13.5px; line-height: 1.5;
+  min-height: 92px;
+}
+.defcard .dc-empty strong { font-family: var(--font-ui); font-size: 13px; }
+.defcard .dc-empty p { margin: 4px 0 0; color: var(--muted); font-size: 12.5px; }
+.dc-kind {
+  font-family: var(--font-ui); font-size: 9.5px; font-weight: 600; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--muted);
+}
+.dc-name { font-family: var(--font-ui); font-weight: 600; font-size: 14.5px; margin: 1px 0 2px; }
+.dc-tex { margin: 0 0 4px; }
+.dc-body { color: var(--ink-2); }
+.dc-link {
+  display: inline-block; margin-top: 7px; font-family: var(--font-ui); font-size: 12px;
+  color: var(--t-data); text-decoration: none; border-bottom: 1px solid var(--border);
+}
+.dc-link:hover { border-bottom-color: var(--t-data); }
+.dc-sees { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: baseline; }
+.dc-sees > span {
+  font-family: var(--font-ui); font-size: 9.5px; font-weight: 600; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--muted);
+}
+.dc-see, .dc-unpin { font-size: 11.5px; padding: 1px 7px; border-radius: 999px; }
+.dc-unpin { margin-top: 8px; }
+
+.railtabs { display: flex; gap: 4px; margin-bottom: 6px; }
+.railtabs button {
+  flex: 1; font-size: 11.5px; padding: 3px 6px; border-radius: 6px;
+  color: var(--ink-2); background: transparent; border: 1px solid transparent;
+}
+.railtabs button[aria-selected=true] {
+  background: var(--surface); border-color: var(--border); color: var(--ink); font-weight: 600;
+}
+
+aside.gloss ul { list-style: none; padding: 0; margin: 6px 0 0; }
+aside.gloss li[data-sym], aside.gloss li[data-term] { cursor: pointer; }
+aside.gloss li[data-term] .tex { font-variant-numeric: tabular-nums; }
+aside.gloss li { padding: 3px 6px; border-radius: 6px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
+aside.gloss .tex { color: var(--muted); }
+aside.gloss li.ghead {
+  color: var(--muted); font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
+  margin-top: 10px; border-bottom: 1px solid var(--border); padding-bottom: 2px;
+}
+aside.gloss li.ghead:first-child { margin-top: 4px; }
+aside.gloss .gtype { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; vertical-align: baseline; }
+
+details {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 16px; margin: 14px 0;
+}
+details > summary { cursor: pointer; color: var(--ink-2); font-size: 14.5px; }
+details[open] > summary { margin-bottom: 8px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+
+.panel {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 16px; margin: 22px 0;
+}
+.panel h4 { margin: 0 0 3px; font-size: 15px; }
+.panel .watch { color: var(--ink-2); font-size: 14.5px; margin: 0 0 12px; }
+/* the shared frame: title with Reset and Table on its right; the table view hides the drawings */
+.phead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.phead h4 { flex: 1 1 240px; }
+.ptools { display: flex; gap: 6px; margin-left: auto; }
+.ptools button { font-size: 12px; padding: 2px 9px; }
+.panel.tableview .chart, .panel.tableview .sankey, .panel.tableview .legend,
+.panel.tableview .tablewrap:not(.twrap) { display: none; }
+.ptable .pnote { font-family: var(--font-ui); font-size: 12.5px; color: var(--ink-2); font-weight: 600; margin: 10px 0 4px; }
+.ptable .tablewrap { max-height: 320px; }
+
+/* the bird's-eye map: the order of the computation as one line of numbered stops */
+.map { margin: 28px 0; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; font-family: var(--font-ui); }
+.map figcaption { font-weight: 600; font-size: 14.5px; margin-bottom: 8px; }
+.map ol { list-style: none; margin: 0; padding: 0; }
+.map li { position: relative; padding-left: 32px; }
+.map li::before { content: ""; position: absolute; left: 11px; top: 0; bottom: 0; width: 2px; background: var(--axis); }
+.map li:first-child::before { top: 17px; }
+.map li:last-child::before { bottom: auto; height: 17px; }
+.map .mstep { position: absolute; left: 0; top: 5px; width: 24px; height: 24px; box-sizing: border-box; border-radius: 50%;
+  border: 2px solid var(--axis); background: var(--surface); color: var(--ink-2); font-size: 11.5px; font-weight: 600;
+  display: grid; place-items: center; font-variant-numeric: tabular-nums; }
+.map a { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; padding: 5px 8px; border-radius: 7px; color: var(--ink); text-decoration: none; font-size: 14px; }
+.map a:hover { background: var(--plane); }
+.map .mch { margin-left: auto; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.map .mdoes { display: block; color: var(--ink-2); font-size: 13px; line-height: 1.45; padding: 0 8px 6px; }
+.map li.lit a { background: var(--v-main-soft); font-weight: 600; }
+.map li.lit .mstep { background: var(--v-main); border-color: var(--v-main); color: var(--surface); }
+.map li.lit .mch { color: var(--v-main); }
+.map .maside { margin: 10px 0 0; padding-top: 8px; border-top: 1px dashed var(--axis); font-size: 13px; color: var(--ink-2); }
+.map .maside a { display: inline; padding: 0; color: var(--t-data); font-size: inherit; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: end; margin-bottom: 14px; }
+.controls label { display: grid; gap: 1px; font-size: 12.5px; color: var(--ink-2); font-family: var(--font-ui); }
+.controls input[type=range] { width: 150px; accent-color: var(--c-labor); }
+.controls label { min-width: 0; max-width: 100%; grid-template-columns: minmax(0, 1fr); }
+.controls select { max-width: 100%; font: inherit; font-size: 13px; padding: 3px 6px; border: 1px solid var(--axis); background: var(--plane); color: var(--ink); border-radius: 6px; }
+.controls .val { color: var(--ink); font-variant-numeric: tabular-nums; font-weight: 600; }
+button {
+  font: inherit; font-family: var(--font-ui); font-weight: 500; font-size: 13px; padding: 4px 10px; border: 1px solid var(--axis);
+  background: var(--plane); color: var(--ink); border-radius: 6px; cursor: pointer;
+}
+button:hover { border-color: var(--ink-2); }
+button[aria-pressed=true] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+
+.chart { position: relative; margin-top: 4px; }
+.chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+.chart text { font-family: var(--font-ui); font-size: 12.5px; fill: var(--ink-2); font-variant-numeric: tabular-nums; }
+.chart .tick { fill: var(--ink-2); }
+.chart .axtitle { fill: var(--ink-2); font-weight: 600; font-size: 12px; letter-spacing: .01em; }
+.chart .gridline { stroke: var(--grid); stroke-width: 1; }
+.chart .baseline { stroke: var(--axis); stroke-width: 1; }
+.chart .zeroline { stroke: var(--ink-2); stroke-width: 1.2; opacity: .7; }
+.chart .bar { fill: var(--v-main); opacity: .85; }
+.chart .bar.dim { opacity: .3; }
+.chart .bar.alt { fill: var(--v-alt); }
+.chart .series { fill: none; stroke: var(--v-main); stroke-width: 2.4; stroke-linejoin: round; }
+.chart .series.alt { stroke: var(--v-alt); stroke-width: 2; stroke-dasharray: 6 4; }
+.chart .series.altsolid { stroke: var(--v-alt); stroke-width: 2; }
+.chart .series.faint { stroke: var(--v-main); stroke-width: 1; opacity: .22; }
+.chart .series.thin { stroke-width: 1.4; }
+.chart .area { fill: var(--v-main-soft); stroke: none; }
+.chart .area.alt { fill: var(--v-alt-soft); }
+.chart .area.strong { fill: var(--v-main); opacity: .35; }
+.chart .ref { stroke: var(--v-ref); stroke-width: 1.3; stroke-dasharray: 3 3; }
+.chart .ref.main { stroke: var(--v-main); }
+.chart .ref.alt { stroke: var(--v-alt); }
+.chart .ref.solid { stroke-dasharray: none; }
+.chart .tag { font-size: 12px; font-weight: 600; fill: var(--ink); paint-order: stroke; stroke: var(--v-halo); stroke-width: 4px; stroke-linejoin: round; }
+.chart .tag.main { fill: var(--v-main); } .chart .tag.alt { fill: var(--v-alt); }
+.chart .tag.ref { fill: var(--ink-2); }
+.chart .tag.quiet { font-weight: 500; fill: var(--ink-2); }
+.chart .dot { fill: var(--v-main); }
+.chart .dot.out { fill: var(--muted); opacity: .55; }
+.chart .dot.hollowmain { fill: var(--surface); stroke: var(--v-main); stroke-width: 1.6; }
+.chart .dot.hl { fill: var(--ink); stroke: var(--surface); stroke-width: 2; }
+.chart .dot.ring { fill: none; stroke: var(--ink); stroke-width: 2; }
+.chart .rangebar { stroke-width: 6; stroke-linecap: round; }
+.chart .rangebar.main { stroke: var(--v-main); } .chart .rangebar.alt { stroke: var(--v-alt); }
+
+/* Sankey: node bars and the bands between them, coloured by where the money ends up */
+.sankey svg { width: 100%; height: auto; display: block; overflow: visible; }
+.sankey text { font-family: var(--font-ui); font-size: 12.5px; fill: var(--ink); paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+.sankey text .v { font-weight: 400; fill: var(--ink-2); font-variant-numeric: tabular-nums; }
+.sankey .node { fill: var(--ink-2); }
+.sankey .node.flow { fill: var(--ink-2); }
+.sankey .link { opacity: .32; } .sankey .link:hover { opacity: .55; }
+.sankey .link.flow { fill: var(--ink-2); opacity: .2; }
+
+/* a compact grid of label and value pairs, in place of long two-column tables */
+dl.kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px; margin: 10px 0 0; font-family: var(--font-ui); }
+dl.kv > div { background: var(--surface); border: 1px solid var(--grid); border-radius: 7px; padding: 7px 10px; min-width: 0; }
+dl.kv dt { font-size: 11.5px; color: var(--ink-2); line-height: 1.3; }
+dl.kv dd { margin: 2px 0 0; font-size: 15px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.pill { display: inline-block; font-family: var(--font-ui); font-size: 12px; font-weight: 700; letter-spacing: .04em;
+  padding: 2px 9px; border-radius: 999px; border: 1px solid currentColor; }
+.pill.none { color: var(--ink-2); }
+.headline { font-family: var(--font-ui); font-size: 14px; line-height: 1.7; color: var(--ink-2); margin: 6px 0 4px; }
+.headline .pill { vertical-align: 1px; margin: 0 4px; }
+.headline b { color: var(--ink); font-size: 16px; font-variant-numeric: tabular-nums; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12.5px; color: var(--ink-2); margin: 2px 0 4px; font-family: var(--font-ui); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend svg { width: 22px; height: 12px; overflow: visible; }
+td.rate { white-space: nowrap; }
+td.rate .rb { display: inline-block; height: 8px; border-radius: 2px; background: var(--v-main); vertical-align: middle; margin-right: 6px; opacity: .85; }
+table.tv.funnel td:first-child { white-space: normal; }
+table.tv.funnel tr.sub td:first-child { padding-left: 1.6em; color: var(--ink-2); }
+table.tv.funnel tr.sub .rb { opacity: .5; }
+tr.muted td { color: var(--muted); }
+.tip {
+  font-family: var(--font-ui); position: absolute; pointer-events: none; z-index: 5; background: var(--ink); color: var(--plane);
+  font-size: 12px; padding: 4px 8px; border-radius: 6px; transform: translate(-50%, -130%);
+  white-space: pre; opacity: 0; transition: opacity .08s;
+}
+.panelfoot { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+
+table.tv { border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; width: 100%; font-family: var(--font-ui); }
+table.tv td, table.tv th { padding: 4px 8px; border-bottom: 1px solid var(--grid); text-align: right; }
+table.tv th { color: var(--ink-2); font-weight: 600; }
+table.tv th:first-child, table.tv td:first-child { text-align: left; }
+table.tv td.l, table.tv th.l { text-align: left; }
+.tablewrap { max-height: 440px; overflow: auto; }
+.tablewrap thead th { position: sticky; top: 0; background: var(--surface); }
+.sankey text .n { font-weight: 600; }
+/* a wide table scrolls inside its own box, so the page never scrolls sideways */
+main table:not(.tv) { display: block; max-width: 100%; overflow-x: auto; }
+.wide { overflow-x: auto; }
+.wide table.tv { min-width: max-content; }
+
+.check {
+  border-left: 3px solid var(--c-labor); padding: 10px 16px; margin: 18px 0;
+  background: var(--surface); border-radius: 0 10px 10px 0;
+}
+.check .q { margin-bottom: 4px; }
+.check .ck { font-family: var(--font-ui); font-weight: 600; }
+.check .ask { color: var(--ink-2); font-size: 14.5px; margin-bottom: 8px; }
+.check .controls { gap: 8px; margin-bottom: 0; }
+.checks-head { margin-top: 40px; }
+.check .answer { margin-top: 8px; font-size: 14.5px; }
+.check .ok { color: var(--ok); font-weight: 600; }
+.check .no { color: var(--bad); font-weight: 600; }
+
+.badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; color: #fff; background: var(--muted); }
+.badge.ok { background: var(--ok); } .badge.bad { background: var(--bad); }
+
+
+pre {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 14px; overflow-x: auto; font-size: 12.5px; line-height: 1.55;
+  font-family: var(--font-mono);
+}
+code { font-size: .88em; font-family: var(--font-mono); }
+:not(pre) > code { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
+blockquote { margin: 14px 0; padding: 2px 0 2px 14px; border-left: 3px solid var(--axis); color: var(--ink-2); }
+footer { color: var(--muted); font-size: 13px; margin-top: 56px; border-top: 1px solid var(--border); padding-top: 14px; }
+mjx-container { overflow-x: auto; overflow-y: hidden; max-width: 100%; }
+
+/* A caption under a figure: the same voice as the panel's own note, small and quiet, so the
+   drawing keeps the reader's attention and the words explain what to look at. */
+.figcap {
+  font-size: 12.5px; line-height: 1.55; color: var(--muted); margin-top: 8px;
+  max-width: 62ch;
+}
+
+/* the "for the review" box closing each chapter: neutral, a list of points to check */
+.review { border: 1px solid var(--border); border-left: 3px solid var(--t-param); background: var(--surface);
+  padding: .6em 1em; margin: 1.6em 0; font-size: .95em; }
+.review > p:first-child { font-family: var(--font-ui); font-weight: 600; margin-top: .2em; }
+.eq .id code { font-family: var(--font-mono); font-size: .85em; color: var(--muted); }
+
+/* a derivation, one operation per line: the equation after it on the left, the operation in words on the right */
+.steps { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; margin: 18px 0;
+  width: calc(100% + 76px); margin-left: -38px; box-sizing: border-box; }
+@media (max-width: 1100px) { .steps { width: auto; margin-left: 0; } }
+.steps > strong { display: block; margin-bottom: 6px; }
+.steps ol { list-style: none; margin: 0; padding: 0; counter-reset: st; }
+.steps li { counter-increment: st; display: grid; grid-template-columns: 1.6em minmax(0, 1fr) minmax(9em, 16em); gap: 4px 14px;
+  align-items: center; padding: 6px 0; border-top: 1px dashed var(--border); }
+.steps li:first-child { border-top: 0; }
+.steps li::before { content: counter(st); color: var(--muted); font: 600 12px var(--font-ui); }
+.steps .st-math { overflow-x: auto; overflow-y: hidden; min-width: 0; }
+.steps .st-math mjx-container { margin: 0 !important; display: inline-block !important; }
+.steps .st-math mjx-container[display="true"] { width: auto !important; min-width: max-content; }
+.steps .st-math mjx-container > svg { max-width: none; }
+.steps .st-rule { color: var(--ink-2); font-size: 14px; line-height: 1.4; border-left: 2px solid var(--border); padding-left: 10px; }
+@media (max-width: 640px) { .steps li { grid-template-columns: 1.6em minmax(0, 1fr); } .steps .st-rule { grid-column: 2; } }
+
+/* the definition under each row of the rail's lists */
+aside.gloss li .gdef { grid-column: 1 / -1; font-size: 0.8em; line-height: 1.35; color: var(--muted); }
+#defcard .dc-note { color: var(--muted); font-size: 0.9em; }
+
+/* ---------------- book colours ----------------
+   The series roles of one book, kept apart from the generic sheet above. These are the MarketResearcher book's:
+   gain / loss = money that stays with us / leaves us, uzum = what the marketplace keeps, cost = what the goods
+   cost to bring in, and the pill words buy / skip. A new book renames these tokens and classes to its own roles
+   (or deletes them); nothing above this block refers to them. */
+:root {
+  --v-gain: #13865a; --v-gain-soft: rgba(19, 134, 90, .14);
+  --v-loss: #c93838; --v-loss-soft: rgba(201, 56, 56, .13);
+  --v-uzum: #7457c4; --v-uzum-soft: rgba(116, 87, 196, .14);
+  --v-cost: #2a6fc9;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --v-gain: #45c98f; --v-gain-soft: rgba(69, 201, 143, .15);
+    --v-loss: #f07a7a; --v-loss-soft: rgba(240, 122, 122, .15);
+    --v-uzum: #a893f2; --v-uzum-soft: rgba(168, 147, 242, .17);
+    --v-cost: #6ea8f2;
+  }
+}
+:root[data-theme="dark"] {
+  --v-gain: #45c98f; --v-gain-soft: rgba(69, 201, 143, .15);
+  --v-loss: #f07a7a; --v-loss-soft: rgba(240, 122, 122, .15);
+  --v-uzum: #a893f2; --v-uzum-soft: rgba(168, 147, 242, .17);
+  --v-cost: #6ea8f2;
+}
+.chart .bar.loss { fill: var(--v-loss); }
+.chart .bar.gain { fill: var(--v-gain); }
+.chart .series.uzum { stroke: var(--v-uzum); stroke-width: 2; stroke-dasharray: 6 4; }
+.chart .area.gain { fill: var(--v-gain-soft); }
+.chart .area.loss { fill: var(--v-loss-soft); }
+.chart .area.uzum { fill: var(--v-uzum-soft); }
+.chart .ref.gain { stroke: var(--v-gain); }
+.chart .ref.loss { stroke: var(--v-loss); }
+.chart .tag.gain { fill: var(--v-gain); }
+.chart .tag.loss { fill: var(--v-loss); }
+.chart .tag.uzum { fill: var(--v-uzum); }
+.chart .dot.gain { fill: var(--v-gain); }
+.chart .dot.loss { fill: var(--v-loss); }
+.chart .dot.hollow { fill: var(--surface); stroke: var(--v-loss); stroke-width: 1.8; }
+.sankey .node.uzum { fill: var(--v-uzum); }
+.sankey .node.cost { fill: var(--v-cost); }
+.sankey .node.gain { fill: var(--v-gain); }
+.sankey .node.loss { fill: var(--v-loss); }
+.sankey .link.uzum { fill: var(--v-uzum); }
+.sankey .link.cost { fill: var(--v-cost); }
+.sankey .link.gain { fill: var(--v-gain); }
+.sankey .link.loss { fill: var(--v-loss); }
+dl.kv dd.gain { color: var(--v-gain); }
+dl.kv dd.loss { color: var(--v-loss); }
+.pill.buy { color: var(--v-gain); background: var(--v-gain-soft); }
+.pill.skip { color: var(--v-loss); background: var(--v-loss-soft); }

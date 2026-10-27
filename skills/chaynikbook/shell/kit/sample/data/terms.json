@@ -1,0 +1,4 @@
+{
+ "proportional": {"name": "proportional relation", "kind": "term", "sec": "s1-1", "match": ["proportional relation"],
+  "def": "A relation in which the output is always the same multiple of the input, so doubling one doubles the other.", "see": []}
+}

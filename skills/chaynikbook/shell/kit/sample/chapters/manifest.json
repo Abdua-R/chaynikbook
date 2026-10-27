@@ -1,0 +1,11 @@
+[
+ {
+  "file": "ch01.md",
+  "id": "ch1",
+  "title": "A line through the origin",
+  "min": 5,
+  "words": 500,
+  "step": "Scale the input",
+  "does": "multiplies the input `x` by the slope `a`"
+ }
+]

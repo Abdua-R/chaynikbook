@@ -1,0 +1,45 @@
+/* reader notes drawer (notes.js); uses the book's tokens --plane, --surface, --ink, --muted, --border, --font-ui */
+.nt-tab {
+  position: fixed; left: 0; top: 50%; transform: translateY(-50%); z-index: 40;
+  writing-mode: vertical-rl; rotate: 180deg; padding: 12px 6px; border: 1px solid var(--border); border-left: 0;
+  border-radius: 0 0 0 0; border-top-left-radius: 8px; border-bottom-left-radius: 8px;
+  background: var(--surface); color: var(--ink); font: 600 13px/1 var(--font-ui); cursor: pointer;
+}
+.nt-tab:hover { background: var(--plane); }
+.nt-box {
+  position: fixed; left: 0; top: 0; bottom: 0; width: min(380px, 100vw); z-index: 50; box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; overflow-y: auto;
+  background: var(--plane); color: var(--ink); border-right: 1px solid var(--border);
+  box-shadow: 4px 0 18px rgba(0, 0, 0, .18); font: 14px/1.45 var(--font-ui);
+}
+.nt-box[hidden] { display: none; }
+.nt-head { display: flex; justify-content: space-between; align-items: center; font-size: 15px; }
+.nt-x { border: 0; background: none; color: var(--muted); font-size: 22px; cursor: pointer; line-height: 1; }
+.nt-where, .nt-status, .nt-date, .nt-empty { color: var(--muted); font-size: 12.5px; }
+.nt-quote { margin: 0; padding: 4px 10px; border-left: 3px solid var(--border); color: var(--muted); font-size: 13px;
+  max-height: 7.5em; overflow: auto; white-space: pre-wrap; }
+.nt-new { width: 100%; box-sizing: border-box; resize: vertical; padding: 8px; border: 1px solid var(--border);
+  border-radius: 6px; background: var(--surface); color: var(--ink); font: inherit; }
+.nt-row, .nt-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.nt-box button:not(.nt-x) { padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; }
+.nt-box button.nt-add { font-weight: 600; }
+.nt-list { display: flex; flex-direction: column; gap: 14px; margin-top: 6px; }
+.nt-sec { font-weight: 600; color: var(--ink); text-decoration: none; }
+.nt-sec:hover { text-decoration: underline; }
+.nt-card { margin-top: 6px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface);
+  display: flex; flex-direction: column; gap: 6px; }
+.nt-text { white-space: pre-wrap; }
+.nt-bar .nt-date { margin-right: auto; }
+body.nt-open .nt-tab { display: none; }
+@media print { .nt-tab, .nt-box { display: none !important; } }
+/* each note's number in the right margin, level with the passage it quotes; the same number heads its card */
+.nt-marks { position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 30; }
+.nt-mark { position: absolute; padding: 0 5px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface);
+  color: var(--ink); font: 600 12px/18px var(--font-ui); cursor: pointer; white-space: nowrap; }
+.nt-mark:hover { background: var(--plane); }
+.nt-num { font: 600 12px var(--font-ui); color: var(--muted); }
+.nt-card.nt-flash { outline: 2px solid var(--ink); }
+@media print { .nt-marks { display: none !important; } }
+/* one-column layout (the book's own breakpoint): the text gives up 30px on the right so the marks sit beside it */
+@media (max-width: 1100px) { body.nt-has main { padding-right: 30px; } }

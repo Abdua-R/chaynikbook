@@ -1,0 +1,8 @@
+{
+ "title": "Kit Sample",
+ "subtitle": "A one-chapter sample book that proves the chaynikbook kit builds and renders. Every number on the page comes from data/.",
+ "data_global": "SAMPLE_DATA",
+ "word_limit": 2000,
+ "currency": " сум",
+ "checks_per_chapter": [1, 5]
+}
